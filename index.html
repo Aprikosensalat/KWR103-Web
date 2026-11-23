@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KWR103 Steuerung</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header>
+    <h1>KWR103 Steuerung</h1>
+    <div class="conn">
+      <label>Baudrate
+        <select id="baud">
+          <option>9600</option>
+          <option>19200</option>
+          <option>38400</option>
+          <option>57600</option>
+          <option selected>115200</option>
+        </select>
+      </label>
+      <button id="btnConnect" class="primary">Verbinden</button>
+      <span id="status" class="status off">getrennt</span>
+    </div>
+  </header>
+
+  <p id="unsupported" class="banner" hidden>
+    Dieser Browser unterstützt die Web Serial API nicht. Bitte Chrome oder Edge (Desktop) verwenden
+    und die Seite über <code>http://localhost</code> oder <code>https://</code> öffnen.
+  </p>
+
+  <main>
+    <section class="card">
+      <h2>Gerät</h2>
+      <p id="idn" class="muted">—</p>
+      <div class="flags" id="devFlags" hidden>
+        <span class="status off" id="flagMode">—</span>
+        <span class="status off" id="flagOvp">OVP aus</span>
+        <span class="status off" id="flagSense">Remote Sense aus</span>
+        <span class="status off" id="flagLock">Tasten frei</span>
+      </div>
+    </section>
+
+    <section class="meters">
+      <div class="card meter">
+        <span class="label">Spannung</span>
+        <span class="value"><span id="mV">—</span> <small>V</small></span>
+      </div>
+      <div class="card meter">
+        <span class="label">Strom</span>
+        <span class="value"><span id="mI">—</span> <small>A</small></span>
+      </div>
+      <div class="card meter">
+        <span class="label">Leistung</span>
+        <span class="value"><span id="mP">—</span> <small>W</small></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Verlauf</h2>
+        <div class="row tight">
+          <label class="check"><input type="checkbox" data-series="v" checked> Spannung</label>
+          <label class="check"><input type="checkbox" data-series="i" checked> Strom</label>
+          <label class="check"><input type="checkbox" data-series="p" checked> Leistung</label>
+          <select id="window" aria-label="Zeitfenster">
+            <option value="60000">1 min</option>
+            <option value="300000" selected>5 min</option>
+            <option value="900000">15 min</option>
+            <option value="3600000">1 h</option>
+            <option value="0">alles</option>
+          </select>
+        </div>
+      </div>
+      <canvas id="plot"></canvas>
+    </section>
+
+    <section class="card controls">
+      <h2>Steuerung</h2>
+      <div class="row">
+        <button id="btnOutput" class="input-btn" disabled>Ausgang EIN</button>
+        <span id="outputState" class="status off">Ausgang aus</span>
+      </div>
+      <div class="row">
+        <label>Spannung (V)
+          <input id="setV" type="number" min="0" max="60" step="0.001" value="0" disabled>
+        </label>
+        <label>Strombegrenzung (A)
+          <input id="setI" type="number" min="0" max="15" step="0.001" value="0" disabled>
+        </label>
+        <button id="btnApply" disabled>Übernehmen</button>
+      </div>
+      <p class="muted small">Sollwerte im Gerät: <span id="curSet">—</span></p>
+      <label class="check"><input type="checkbox" id="offOnDisconnect" checked> Ausgang beim Trennen ausschalten</label>
+    </section>
+
+    <section class="card tabs-card">
+      <div class="tabs" role="tablist" aria-label="Sonderfunktionen">
+        <button role="tab" data-tab="charge">Batterie laden</button>
+        <button role="tab" data-tab="prot">Schutz</button>
+        <button role="tab" data-tab="sys">Speicher &amp; System</button>
+      </div>
+
+      <!-- Batterie laden -->
+      <div class="tab-panel" role="tabpanel" id="tab-charge">
+        <div class="card-head">
+          <p class="muted small">
+            CC/CV-Ladung: <b>1.</b> „Ladung vorbereiten“ stellt die Ladeschlussspannung mit 1 mA Strombegrenzung
+            ein und schaltet den Ausgang an. <b>2.</b> Batterie anschließen – die Website erkennt sie am
+            Spannungseinbruch. Liegt die Batteriespannung unter der Mindestspannung (oder über der
+            Ladeschlussspannung), wird die Ladung verweigert und der Ausgang abgeschaltet. <b>3.</b> Sonst wird
+            mit vollem Strom geladen, bis der Strom die eingestellte Zeit lang unter dem Abschaltstrom liegt.
+            Die Überwachung läuft in der Website – die Seite während der Ladung geöffnet lassen.
+          </p>
+          <span id="chgState" class="status off">bereit</span>
+        </div>
+        <div class="row">
+          <label>Vorlage
+            <select id="chgPreset">
+              <option value="">eigene Werte</option>
+              <option value="liion">Li-Ion / LiPo 1S (4,20 V)</option>
+              <option value="lifepo4">LiFePO4 1S (3,65 V)</option>
+              <option value="lead12">Blei 12 V (14,4 V)</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Ladeschlussspannung (V)
+            <input id="chgVend" type="number" min="0.1" max="60" step="0.01" value="4.2">
+          </label>
+          <label>Ladestrom (A)
+            <input id="chgI" type="number" min="0.01" max="15" step="0.01" value="1">
+          </label>
+          <label>Abschaltstrom (A)
+            <input id="chgIoff" type="number" min="0.01" max="15" step="0.01" value="0.05">
+          </label>
+          <label>Abschaltdauer (s)
+            <input id="chgToff" type="number" min="0" max="3600" step="1" value="30">
+          </label>
+          <label>Mindestspannung (V)
+            <input id="chgVmin" type="number" min="0" max="60" step="0.01" value="2.5">
+          </label>
+          <label>Max. Ladezeit (h)
+            <input id="chgTmax" type="number" min="0.01" max="100" step="0.5" value="12">
+          </label>
+        </div>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="chgClear" checked> Verlauf beim Start löschen</label>
+          <button id="btnChgStart" class="primary" disabled>Ladung vorbereiten</button>
+          <button id="btnChgStop" disabled>Abbrechen</button>
+        </div>
+        <p id="chgMsg" class="hint" hidden></p>
+        <div class="stats">
+          <div><span class="label">Phase</span><span id="cPhase" class="stat">—</span></div>
+          <div><span class="label">Batteriespannung bei Start</span><span id="cVbat" class="stat">—</span></div>
+          <div><span class="label">Ladezeit</span><span id="cTime" class="stat">—</span></div>
+          <div><span class="label">Geladen</span><span id="cAh" class="stat">—</span></div>
+          <div><span class="label">Energie</span><span id="cWh" class="stat">—</span></div>
+          <div><span class="label">Unter Abschaltstrom</span><span id="cBelow" class="stat">—</span></div>
+        </div>
+      </div>
+
+      <!-- Schutz -->
+      <div class="tab-panel" role="tabpanel" id="tab-prot" hidden>
+        <h3>Überspannungsschutz (OVP)</h3>
+        <div class="row">
+          <label>OVP-Spannung (V)
+            <input id="ovpV" type="number" min="0.1" max="61" step="0.01" value="60.5">
+          </label>
+          <button id="btnOvpSet" disabled>Wert übernehmen</button>
+          <label class="check"><input type="checkbox" id="ovpOn" disabled> OVP aktiv</label>
+        </div>
+        <h3>Überstromschutz (OCP)</h3>
+        <div class="row">
+          <label>OCP-Strom (A)
+            <input id="ocpI" type="number" min="0.01" max="16" step="0.01" value="15.5">
+          </label>
+          <button id="btnOcpSet" disabled>Wert übernehmen</button>
+        </div>
+        <p class="muted small">
+          Der OCP-Wert lässt sich hier setzen, das Ein- und Ausschalten des Überstromschutzes nimmt das
+          Netzteil über die Schnittstelle aber nicht an (am Gerät geprüft). Aktivieren am Gerät: OCP kurz
+          drücken, dann ON/OFF. Ohne aktiven OCP begrenzt das Netzteil den Strom auf den eingestellten Wert (CC).
+        </p>
+        <p id="protMsg" class="muted small"></p>
+      </div>
+
+      <!-- Speicher & System -->
+      <div class="tab-panel" role="tabpanel" id="tab-sys" hidden>
+        <h3>Schnellspeicher M1–M5</h3>
+        <div class="row">
+          <label>Speicher
+            <select id="memSlot">
+              <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+            </select>
+          </label>
+          <button id="btnMemRecall" disabled>Abrufen</button>
+          <button id="btnMemSave" disabled>Aktuelle Sollwerte speichern</button>
+        </div>
+        <p id="memMsg" class="muted small"></p>
+        <h3>System</h3>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="sysBeep" disabled> Tastenton (Summer)</label>
+          <label class="check"><input type="checkbox" id="sysLock" disabled> Tastensperre am Gerät</label>
+          <label class="check"><input type="checkbox" id="sysSense" disabled> Remote Sense</label>
+        </div>
+        <p class="muted small">
+          Remote Sense nur mit angeschlossenen Sense-Leitungen (Rückseite, SENSE) einschalten; umschalten nur bei
+          ausgeschaltetem Ausgang. Am Gerät: OCP lange drücken. Tastensperre am Gerät: LOCK lange drücken.
+        </p>
+      </div>
+    </section>
+
+    <section class="card logging">
+      <h2>Aufzeichnung</h2>
+      <div class="row">
+        <label>Intervall
+          <select id="interval">
+            <option value="250">250 ms</option>
+            <option value="500" selected>500 ms</option>
+            <option value="1000">1 s</option>
+            <option value="2000">2 s</option>
+            <option value="5000">5 s</option>
+            <option value="10000">10 s</option>
+            <option value="30000">30 s</option>
+          </select>
+        </label>
+        <label>CSV-Format
+          <select id="csvFormat">
+            <option value="de">Excel deutsch (; und Komma)</option>
+            <option value="int">International (, und Punkt)</option>
+          </select>
+        </label>
+        <button id="btnPoll" disabled>Pause</button>
+        <button id="btnCsv">Gesamtverlauf als CSV</button>
+        <button id="btnClear">Verlauf löschen</button>
+      </div>
+      <p class="muted small"><span id="samples">0</span> Messwerte aufgezeichnet · Energie <span id="energy">0.000</span> Wh · Ladung <span id="charge">0.000</span> Ah</p>
+    </section>
+
+    <section class="card" id="filesCard">
+      <div class="card-head">
+        <h2>Messdateien</h2>
+        <span id="filesInfo" class="muted small"></span>
+      </div>
+      <p class="muted small">
+        Jede Ladung und jedes Einschalten des Ausgangs bekommt automatisch eine eigene Datei mit
+        Parametern und Ablauf (Spalte „info“). Die Dateien bleiben im Browser gespeichert,
+        auch nach dem Neuladen der Seite.
+      </p>
+      <div class="row">
+        <button id="btnFilesDl" disabled>Ausgewählte herunterladen</button>
+        <button id="btnFilesAll" disabled>Alle als ZIP herunterladen</button>
+        <button id="btnFilesDel" disabled>Ausgewählte löschen</button>
+      </div>
+      <div class="table-wrap files">
+        <table id="filesTable" class="grid-table files-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="filesAllCb" aria-label="Alle auswählen"></th>
+              <th>Ablauf</th><th>Start</th><th>Dauer</th><th>Messwerte</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="filesEmpty" class="muted small">Noch keine Messdateien.</p>
+    </section>
+
+    <section class="card console">
+      <h2>Konsole</h2>
+      <form id="consoleForm" class="row">
+        <input id="cmd" type="text" placeholder="z. B. *IDN? oder VOUT?" autocomplete="off" disabled>
+        <button id="btnSend" disabled>Senden</button>
+      </form>
+      <pre id="log"></pre>
+    </section>
+  </main>
+</body>
+</html>
