@@ -11,11 +11,11 @@ export function niceStep(range, count) {
   return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * mag;
 }
 
-function decimals(step) {
+export function decimals(step) {
   return Math.max(0, Math.min(4, -Math.floor(Math.log10(step) + 1e-9)));
 }
 
-function lowerBound(data, t) {
+export function lowerBound(data, t) {
   let lo = 0, hi = data.length;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
@@ -24,7 +24,7 @@ function lowerBound(data, t) {
   return lo;
 }
 
-function prepareCanvas(canvas, height) {
+export function prepareCanvas(canvas, height) {
   const dpr = window.devicePixelRatio || 1;
   canvas.style.height = height + 'px';
   const w = canvas.clientWidth;

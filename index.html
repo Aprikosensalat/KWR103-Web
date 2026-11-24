@@ -247,7 +247,7 @@
       <p class="muted small">
         Jede Ladung und jedes Einschalten des Ausgangs bekommt automatisch eine eigene Datei mit
         Parametern und Ablauf (Spalte „info“). Die Dateien bleiben im Browser gespeichert,
-        auch nach dem Neuladen der Seite.
+        auch nach dem Neuladen der Seite. „Ansehen“ öffnet eine Datei im Diagramm mit Zoom und Messcursorn.
       </p>
       <div class="row">
         <button id="btnFilesDl" disabled>Ausgewählte herunterladen</button>
@@ -267,6 +267,8 @@
       </div>
       <p id="filesEmpty" class="muted small">Noch keine Messdateien.</p>
     </section>
+
+    <section class="card" id="viewerCard" hidden></section>
 
     <section class="card console">
       <h2>Konsole</h2>

@@ -14,6 +14,9 @@ Schwesterprojekt zu *KEL103-Web*. Kein Build-Schritt, keine Abhängigkeiten – 
 - Schutz: OVP-Spannung und OVP ein/aus, OCP-Strom
 - Schnellspeicher M1–M5, Tastenton, Tastensperre, Remote Sense
 - Messdateien je Ladung bzw. je Einschalten des Ausgangs, Download als CSV oder ZIP
+- **Messdatei-Betrachter** („Ansehen“): gespeicherte Dateien als Diagramm mit Zoom (Mausrad, Bereich
+  aufziehen, Tasten + / −), Verschieben (Umschalt + Ziehen oder rechte Maustaste) und zwei Messcursorn A/B;
+  die Tabelle zeigt Werte an A und B, Differenz, Min/Max/Mittel sowie Ladung, Energie und |ΔU/ΔI| dazwischen
 - CSV wahlweise für deutsches Excel (`;`, Dezimalkomma, Ortszeit) oder international
 - Konsole für beliebige Befehle
 
@@ -82,6 +85,6 @@ Bit 5 Tastensperre · Bit 6 OVP aktiv · Bit 7 OCP.
 - `style.css` – Gestaltung (helles/dunkles Farbschema)
 - `kwr103.js` – Treiber: serielle Verbindung, Befehlswarteschlange, Byte-Auswertung, KWR103-Befehle
 - `app.js` – UI-Logik, Messschleife, Lade-Ablauf, Messdateien
-- `plot.js`, `runs.js` – Diagramme und Messdateien (aus KEL103-Web übernommen)
+- `plot.js`, `runs.js`, `viewer.js` – Diagramme, Messdateien und Messdatei-Betrachter (identisch mit KEL103-Web)
 
 Hersteller-PDFs im Ordner sind per `.gitignore` vom Repository ausgeschlossen.

@@ -1,6 +1,7 @@
 import { KWR103, LIMITS } from './kwr103.js';
 import { TimePlot } from './plot.js';
 import { RunStore, Recorder, runToCsv, fileName, makeZip } from './runs.js';
+import { LogViewer } from './viewer.js';
 
 const $ = (id) => document.getElementById(id);
 const psu = new KWR103();
@@ -746,6 +747,10 @@ function renderFiles() {
     tr.insertCell().textContent = meta.count.toLocaleString('de-DE');
 
     const actions = tr.insertCell();
+    const view = document.createElement('button');
+    view.textContent = 'Ansehen';
+    view.title = 'Im Diagramm ansehen (Zoom, Cursor)';
+    view.addEventListener('click', () => viewer.open(meta).catch((e) => log('err', `Messdatei nicht lesbar: ${e.message}`)));
     const dl = document.createElement('button');
     dl.textContent = 'CSV';
     dl.title = 'Als CSV herunterladen';
@@ -754,7 +759,7 @@ function renderFiles() {
     del.textContent = 'Löschen';
     del.disabled = isActive;
     del.addEventListener('click', () => deleteFiles([meta.id]));
-    actions.append(dl, del);
+    actions.append(view, dl, del);
   }
   $('filesEmpty').hidden = fileList.length > 0;
   $('filesInfo').textContent = `${fileList.length} Datei${fileList.length === 1 ? '' : 'en'}` +
@@ -803,9 +808,22 @@ async function deleteFiles(ids) {
   for (const id of del) {
     try { await store.remove(id); } catch (e) { log('err', e.message); }
     selectedFiles.delete(id);
+    if (viewer.id === id) viewer.close();
   }
   refreshFiles();
 }
+
+// ---------- Betrachter für Messdateien ----------
+const viewer = new LogViewer($('viewerCard'), {
+  load: async (meta) => {
+    if (meta.id === rec.run?.meta.id) await rec.flushNow();
+    return store.rows(meta.id);
+  },
+});
+// laufende Aufzeichnung im Betrachter regelmäßig nachladen
+setInterval(() => {
+  if (viewer.id && viewer.id === rec.run?.meta.id) viewer.reload().catch(() => {});
+}, 5000);
 
 $('filesAllCb').addEventListener('change', () => {
   if ($('filesAllCb').checked) fileList.forEach((m) => selectedFiles.add(m.id));

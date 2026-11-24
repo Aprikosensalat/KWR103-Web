@@ -11,6 +11,12 @@
   --c-volt: #2563eb;
   --c-curr: #d97706;
   --c-pow: #9333ea;
+  --c-ext1: #059669;
+  --c-ext2: #db2777;
+  --c-ext3: #0891b2;
+  --c-ext4: #65a30d;
+  --cur-a: #e11d48;
+  --cur-b: #0d9488;
   color-scheme: light;
 }
 
@@ -28,6 +34,12 @@
     --c-volt: #60a5fa;
     --c-curr: #fbbf24;
     --c-pow: #c084fc;
+    --c-ext1: #34d399;
+    --c-ext2: #f472b6;
+    --c-ext3: #22d3ee;
+    --c-ext4: #a3e635;
+    --cur-a: #fb7185;
+    --cur-b: #2dd4bf;
     color-scheme: dark;
   }
 }
@@ -270,3 +282,16 @@ button.primary { background: var(--accent); color: #fff; border-color: var(--acc
 #log .err { color: var(--danger); }
 
 .hint.err { border-left-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+
+/* Betrachter für Messdateien */
+.lv-plot { width: 100%; display: block; touch-action: none; cursor: crosshair; outline: none; }
+.lv-plot:focus-visible { box-shadow: 0 0 0 2px var(--accent); border-radius: 4px; }
+.lv-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.lv-name { color: var(--muted); font-size: 0.9rem; }
+.lv-series, .lv-tools { margin-bottom: 8px; flex-wrap: wrap; }
+.lv-tools button { min-width: 2.2em; }
+.lv-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-left: 2px; }
+.lv-help { margin: 4px 0 0; }
+.lv-hover { margin: 2px 0 8px; min-height: 1.4em; font-variant-numeric: tabular-nums; }
+.lv-table th[scope="row"] { text-align: left; font-weight: 600; }
+.lv-calc { margin: 8px 0 0; font-variant-numeric: tabular-nums; }
