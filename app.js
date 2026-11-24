@@ -26,7 +26,10 @@ const state = {
 };
 const chgActive = () => state.chg?.running === true;
 const avg = (arr) => arr.reduce((s, x) => s + x, 0) / arr.length;
-const near = (a, b) => Math.abs(a - b) <= Math.max(0.0015, Math.abs(b) * 1e-3);
+// Vergleich zurückgelesener Sollwerte; null = Gerät kann den Wert nicht zurückmelden (dann nicht prüfbar).
+// Spannung: Auflösung je Gerät (KWR103 1 mV, KA3005P 10 mV), Strom: alle Geräte 1 mA.
+const nearV = (a, b) => a == null || Math.abs(a - b) <= Math.max(isNative() ? 0.0015 : 0.011, Math.abs(b) * 1e-3);
+const nearI = (a, b) => a == null || Math.abs(a - b) <= Math.max(0.0015, Math.abs(b) * 1e-3);
 
 function storageGet(key) {
   try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
@@ -88,7 +91,7 @@ function lim() {
 function applyCaps() {
   caps = isNative()
     ? { charge: true, prot: true, mem: true, sys: true, sense: true, generic: false }
-    : { charge: false, prot: false, mem: false, sys: false, sense: psu.senseControl, generic: true };
+    : { charge: true, prot: false, mem: false, sys: false, sense: psu.senseControl, generic: true };
   for (const el of document.querySelectorAll('[data-cap]')) el.hidden = !caps[el.dataset.cap];
   const visibleTabs = tabButtons.filter((b) => !b.hidden);
   $('tabsCard').hidden = !visibleTabs.length;
@@ -423,6 +426,11 @@ for (const id of CHG_FIELDS) {
 }
 
 const PREP_CURRENT_A = 0.005; // Strombegrenzung bei „Ladung vorbereiten“ (5 mA)
+// Nach dem Einschalten lädt das Netzteil seinen Ausgangskondensator mit nur 5 mA – die Spannung steigt langsam.
+// Das sähe aus wie eine angeschlossene Batterie (Spannung zu niedrig, Strombegrenzung). Die Batterieerkennung
+// startet deshalb erst, wenn die Ladeschlussspannung erreicht ist, spätestens aber nach RAMP_MAX_MS
+// (dann ist vermutlich schon vor dem Einschalten eine Batterie angeschlossen gewesen).
+const RAMP_MAX_MS = 15_000;
 const BATT_DETECT_MS = 2000; // so lange muss der Spannungseinbruch stabil sein
 const IGNORE_AFTER_START_MS = 5000; // Anlaufzeit, in der der Abschaltstrom nicht geprüft wird
 const CHG_COLS = [
@@ -448,9 +456,10 @@ function readChargeForm() {
   const f = (id) => Number($(id).value);
   const p = { vEnd: f('chgVend'), iCharge: f('chgI'), iOff: f('chgIoff'), tOff: f('chgToff'), vMin: f('chgVmin'), tMax: f('chgTmax') };
   const check = (ok, msg) => { if (!ok) throw new Error(msg); };
-  check(p.vEnd > 0 && p.vEnd <= LIMITS.V, `Die Ladeschlussspannung muss zwischen 0 und ${LIMITS.V} V liegen.`);
-  check(p.iCharge >= 0.01 && p.iCharge <= LIMITS.I, `Der Ladestrom muss zwischen 0,01 und ${LIMITS.I} A liegen.`);
-  check(p.vEnd * p.iCharge <= LIMITS.P, `Ladeschlussspannung × Ladestrom übersteigt ${LIMITS.P} W.`);
+  const L = lim(); // Grenzen des gewählten Netzteils (bzw. Kanals)
+  check(p.vEnd > 0 && p.vEnd <= L.V, `Die Ladeschlussspannung muss zwischen 0 und ${L.V} V liegen.`);
+  check(p.iCharge >= 0.01 && p.iCharge <= L.I, `Der Ladestrom muss zwischen 0,01 und ${L.I} A liegen.`);
+  check(p.vEnd * p.iCharge <= L.P, `Ladeschlussspannung × Ladestrom übersteigt ${L.P} W.`);
   check(p.iOff >= 0.01, 'Der Abschaltstrom muss mindestens 0,01 A sein (Messgenauigkeit des Netzteils ±3 mA).');
   check(p.iOff < p.iCharge, 'Der Abschaltstrom muss kleiner als der Ladestrom sein.');
   check(p.tOff >= 0 && p.tOff <= 3600, 'Die Abschaltdauer muss zwischen 0 und 3600 s liegen.');
@@ -471,7 +480,7 @@ function renderCharge() {
   if (!c) return;
   const now = c.endT ?? Date.now();
   const phaseText = {
-    wait: 'Warte auf Batterie',
+    wait: c.armed ? 'Warte auf Batterie' : 'Spannung fährt hoch',
     charge: c.mode === 'CV' ? 'Laden (CV)' : 'Laden (CC)',
     done: 'beendet',
   }[c.phase];
@@ -505,19 +514,20 @@ async function startCharge() {
     await psu.setVoltage(p.vEnd);
     await psu.setCurrent(PREP_CURRENT_A);
     const set = await refreshSetpoints();
-    if (!near(set.v, p.vEnd) || !near(set.i, PREP_CURRENT_A)) {
+    if (!nearV(set.v, p.vEnd) || !nearI(set.i, PREP_CURRENT_A)) {
       throw new Error(`Das Netzteil hat die Werte nicht übernommen (gelesen: ${set.v} V / ${set.i} A).`);
     }
     if ($('chgClear').checked) $('btnClear').click();
 
     state.chg = {
-      running: true, phase: 'wait', params: p, startT: Date.now(), endT: null,
+      running: true, phase: 'wait', armed: false, rampStart: null, params: p, startT: Date.now(), endT: null,
       waitCond: null, waitSince: 0, waitV: [],
       vBat: null, chargeStartT: null, lastT: null, lastI: 0, lastP: 0, prevI: 0,
       ah: 0, wh: 0, belowSince: null, mode: 'CC', vLast: null,
     };
     rec.start('charge', `Ladung – ${p.vEnd} V / ${p.iCharge} A`, {
       params: {
+        Geraet: deviceInfo().name,
         Ladeschlussspannung: `${p.vEnd} V`,
         Ladestrom: `${p.iCharge} A`,
         Abschaltstrom: `${p.iOff} A`,
@@ -527,13 +537,14 @@ async function startCharge() {
       },
       extraCols: CHG_COLS,
     });
-    rec.setPhase('Warte auf Batterie');
+    rec.setPhase('Spannung fährt hoch');
     await psu.setOutput(true);
+    state.chg.rampStart = Date.now();
     const st = await psu.status();
     renderStatus(st);
     if (!st.output) throw new Error('Der Ausgang ließ sich nicht einschalten.');
     setChgState('wartet', 'run');
-    chgMsg(`Ausgang an: ${p.vEnd} V mit ${PREP_CURRENT_A * 1000} mA Strombegrenzung. Jetzt die Batterie anschließen (Plus an Plus) …`);
+    chgMsg(`Ausgang an: ${p.vEnd} V mit ${PREP_CURRENT_A * 1000} mA Strombegrenzung. Die Spannung fährt hoch – bitte warten, bis „Batterie anschließen“ erscheint (höchstens ${RAMP_MAX_MS / 1000} s) …`);
     log('info', `Ladung vorbereitet: ${p.vEnd} V, warte auf Batterie`);
   } catch (e) {
     chgMsg(e.message, 'err');
@@ -559,6 +570,23 @@ function chargeEvaluate(m, st) {
   } else if (c.phase === 'wait') {
     // Batterie erkannt: Spannung bricht unter die Ladeschlussspannung ein, Netzteil in Strombegrenzung (5 mA)
     const tol = Math.max(0.05, p.vEnd * 0.01);
+    if (!c.armed) {
+      // erst das Hochlaufen der Ausgangsspannung abwarten
+      const reached = Math.abs(m.v - p.vEnd) <= tol;
+      const waited = now - (c.rampStart ?? now);
+      if (reached || waited >= RAMP_MAX_MS) {
+        c.armed = true;
+        rec.setPhase('Warte auf Batterie');
+        rec.event(reached ? `Ausgangsspannung ${m.v.toFixed(3)} V erreicht nach ${(waited / 1000).toFixed(1)} s`
+          : `Ausgangsspannung nach ${RAMP_MAX_MS / 1000} s nicht erreicht (${m.v.toFixed(3)} V) – Batterie schon angeschlossen?`);
+        chgMsg(reached
+          ? `Ausgang bereit: ${p.vEnd} V. Jetzt die Batterie anschließen (Plus an Plus) …`
+          : `Ausgangsspannung nach ${RAMP_MAX_MS / 1000} s nicht erreicht (${m.v.toFixed(2)} V) – vermutlich ist schon eine Batterie angeschlossen. Batterieerkennung läuft …`);
+      }
+      c.vLast = m.v;
+      renderCharge();
+      return { extra: { geladen_mAh: 0, geladen_Wh: 0, ladezeit_min: 0, modus: st.cv ? 'CV' : 'CC' }, action: null };
+    }
     const cond = m.v < p.vEnd - tol && !st.cv ? 'below' : m.v > p.vEnd + tol ? 'above' : null;
     if (cond !== c.waitCond) {
       c.waitCond = cond;
@@ -626,7 +654,7 @@ async function chargeApply(action) {
     if (action.type === 'startCharge') {
       await psu.setCurrent(c.params.iCharge);
       const set = await refreshSetpoints();
-      if (!near(set.i, c.params.iCharge)) throw new Error(`Ladestrom nicht übernommen (gelesen ${set.i} A).`);
+      if (!nearI(set.i, c.params.iCharge)) throw new Error(`Ladestrom nicht übernommen (gelesen ${set.i} A).`);
       c.phase = 'charge';
       c.chargeStartT = Date.now();
       rec.setParam('Batteriespannung bei Start', `${action.vBat.toFixed(3)} V`);

@@ -25,7 +25,8 @@ Schwesterprojekt zu *KEL103-Web*. Kein Build-Schritt, keine Abhängigkeiten – 
 Über **Gerät** lassen sich auch die Netzteile aus der gemeinsamen Geräteschicht (`devices/`, wie in
 *Effizienzmessung-Web*) steuern: KORAD KA3005P, R&S NGP800-Serie, R&S HMP2020/2030/4030/4040 und ein Simulator.
 Für diese gibt es die Grundfunktionen (Sollwerte, Ausgang, Messung, Verlauf, Messdateien, Konsole) und – wo
-das Gerät es per Befehl kann – Remote Sense. Laden, Schutz und Speicher bleiben dem KWR103 vorbehalten.
+das Gerät es per Befehl kann – Remote Sense. Der **Batterie-Lademodus** funktioniert mit allen Netzteilen;
+Schutz (OVP/OCP) und Schnellspeicher bleiben dem KWR103 vorbehalten.
 
 ## Starten
 
@@ -53,12 +54,15 @@ Unter Windows hält der COM-Port-Treiber das Gerät, dort weiter „Seriell“ v
 
 1. **Ladung vorbereiten:** Das Netzteil wird auf die Ladeschlussspannung mit **5 mA** Strombegrenzung
    gestellt und der Ausgang eingeschaltet.
-2. **Batterie anschließen:** Die Website erkennt die Batterie daran, dass die Ausgangsspannung unter die
+2. **Hochlaufen abwarten:** Mit 5 mA lädt das Netzteil seinen Ausgangskondensator nur langsam. Die
+   Batterieerkennung startet erst, wenn die Ladeschlussspannung erreicht ist, spätestens nach 15 s
+   (dann war vermutlich schon vorher eine Batterie angeschlossen).
+3. **Batterie anschließen:** Die Website erkennt die Batterie daran, dass die Ausgangsspannung unter die
    Ladeschlussspannung einbricht und das Netzteil in die Strombegrenzung (CC) geht – 2 s stabil.
-3. **Prüfung:** Liegt die Batteriespannung unter der **Mindestspannung** (tiefentladen) oder über der
+4. **Prüfung:** Liegt die Batteriespannung unter der **Mindestspannung** (tiefentladen) oder über der
    Ladeschlussspannung, wird die Ladung verweigert und der Ausgang abgeschaltet.
-4. **Laden:** Strombegrenzung auf den Ladestrom – erst CC, dann CV an der Ladeschlussspannung.
-5. **Ende:** sobald der Strom die eingestellte **Abschaltdauer** (Standard 30 s) durchgehend unter dem
+5. **Laden:** Strombegrenzung auf den Ladestrom – erst CC, dann CV an der Ladeschlussspannung.
+6. **Ende:** sobald der Strom die eingestellte **Abschaltdauer** (Standard 30 s) durchgehend unter dem
    **Abschaltstrom** liegt, oder nach der **maximalen Ladezeit**. Danach wird der Ausgang ausgeschaltet.
 
 Die Überwachung läuft in der Website, nicht im Netzteil: Während der Ladung die Seite geöffnet lassen.
