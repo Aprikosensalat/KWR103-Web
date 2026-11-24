@@ -138,7 +138,7 @@ async function refreshSense() {
 // ---------- Verbindung ----------
 async function connect() {
   try {
-    await psu.connect(Number($('baud').value));
+    await psu.connect(Number($('baud').value), { usb: $('transport').value === 'usb' });
   } catch (e) {
     if (e.name !== 'NotFoundError') log('err', `Verbinden fehlgeschlagen: ${e.message}`);
     return;
@@ -859,6 +859,16 @@ $('consoleForm').addEventListener('submit', async (e) => {
 if (!KWR103.supported()) {
   $('unsupported').hidden = false;
   $('btnConnect').disabled = true;
+}
+// Schnittstelle: Web Serial am Desktop, WebUSB unter Android (dort kann Web Serial nur Bluetooth)
+{
+  const hasSerial = 'serial' in navigator, hasUsb = 'usb' in navigator;
+  const android = /Android/i.test(navigator.userAgent);
+  for (const opt of $('transport').options) opt.hidden = opt.value === 'usb' ? !hasUsb : !hasSerial;
+  const saved = storageGet('kwr103.transport');
+  $('transport').value = (saved === 'usb' && hasUsb) || (saved === 'serial' && hasSerial) ? saved
+    : (android || !hasSerial) && hasUsb ? 'usb' : 'serial';
+  $('transport').addEventListener('change', () => storageSet('kwr103.transport', $('transport').value));
 }
 showTab(storageGet('kwr103.tab') ?? 'charge');
 updateControls();

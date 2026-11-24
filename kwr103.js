@@ -9,6 +9,8 @@
 //   OCP:15.500 / OCP?   (OCP:ON wird per Schnittstelle nicht wirksam – Schutz am Gerät aktivieren)
 //   BEEP:1/0 · LOCK:1/0 · COMP:1/0, COMP? (Remote Sense) · RCL:1…5 / SAV:1…5 (M1–M5)
 
+import { UsbSerialPort } from './usbserial.js';
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export const LIMITS = { V: 60, I: 15, P: 300 };
@@ -29,16 +31,18 @@ export class KWR103 {
     this._encoder = new TextEncoder();
   }
 
+  /** Web Serial (Desktop) oder WebUSB (Android) verfügbar? */
   static supported() {
-    return 'serial' in navigator;
+    return 'serial' in navigator || UsbSerialPort.supported();
   }
 
   get connected() {
     return this.port !== null;
   }
 
-  async connect(baudRate = 115200) {
-    const port = await navigator.serial.requestPort();
+  /** usb=true: Verbindung über WebUSB (CDC-ACM), z. B. unter Android. */
+  async connect(baudRate = 115200, { usb = false } = {}) {
+    const port = usb ? await UsbSerialPort.request() : await navigator.serial.requestPort();
     await port.open({ baudRate, dataBits: 8, stopBits: 1, parity: 'none', flowControl: 'none' });
     this.port = port;
     this.writer = port.writable.getWriter();

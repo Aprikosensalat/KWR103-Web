@@ -11,6 +11,12 @@
   <header>
     <h1>KWR103 Steuerung</h1>
     <div class="conn">
+      <label>Schnittstelle
+        <select id="transport">
+          <option value="serial">Seriell (Web Serial)</option>
+          <option value="usb">USB direkt (WebUSB, Android)</option>
+        </select>
+      </label>
       <label>Baudrate
         <select id="baud">
           <option>9600</option>
@@ -26,8 +32,8 @@
   </header>
 
   <p id="unsupported" class="banner" hidden>
-    Dieser Browser unterstützt die Web Serial API nicht. Bitte Chrome oder Edge (Desktop) verwenden
-    und die Seite über <code>http://localhost</code> oder <code>https://</code> öffnen.
+    Dieser Browser unterstützt weder die Web Serial API noch WebUSB. Bitte Chrome oder Edge verwenden
+    (Desktop oder Android) und die Seite über <code>http://localhost</code> oder <code>https://</code> öffnen.
   </p>
 
   <main>

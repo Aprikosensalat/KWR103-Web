@@ -6,7 +6,7 @@ Schwesterprojekt zu *KEL103-Web*. Kein Build-Schritt, keine Abhängigkeiten – 
 
 ## Funktionen
 
-- Verbinden über USB-Seriell (Baudrate wählbar, Standard 115200)
+- Verbinden über USB-Seriell (Baudrate wählbar, Standard 115200), unter Android über WebUSB
 - Spannung und Strombegrenzung setzen, Ausgang ein/aus, Anzeige CC/CV
 - Live-Anzeige von Spannung, Strom und Leistung mit Verlaufsdiagramm
 - **Batterie laden (CC/CV)** mit Ladeschlussspannung, Ladestrom, Abschaltstrom, Abschaltdauer,
@@ -29,6 +29,12 @@ python -m http.server 8001
 ```
 
 Dann <http://localhost:8001> öffnen, **Verbinden** klicken und den COM-Port des Netzteils wählen.
+
+**Android:** Chrome unter Android kann mit Web Serial nur Bluetooth-Geräte öffnen. Für das USB-Kabel
+(OTG-Adapter) unter **Schnittstelle** „USB direkt (WebUSB, Android)“ wählen – unter Android ist das
+voreingestellt. Die Website spricht dann das USB-CDC-Protokoll selbst (`usbserial.js`, KEL103 und KWR103
+melden sich als VID 0x0416 / PID 0x5011). Unter Windows hält der COM-Port-Treiber das Gerät, dort weiter
+„Seriell“ verwenden.
 
 ## Batterie laden
 
@@ -85,6 +91,6 @@ Bit 5 Tastensperre · Bit 6 OVP aktiv · Bit 7 OCP.
 - `style.css` – Gestaltung (helles/dunkles Farbschema)
 - `kwr103.js` – Treiber: serielle Verbindung, Befehlswarteschlange, Byte-Auswertung, KWR103-Befehle
 - `app.js` – UI-Logik, Messschleife, Lade-Ablauf, Messdateien
-- `plot.js`, `runs.js`, `viewer.js` – Diagramme, Messdateien und Messdatei-Betrachter (identisch mit KEL103-Web)
+- `plot.js`, `runs.js`, `viewer.js`, `usbserial.js` – Diagramme, Messdateien, Messdatei-Betrachter und WebUSB-Verbindung (identisch mit KEL103-Web)
 
 Hersteller-PDFs im Ordner sind per `.gitignore` vom Repository ausgeschlossen.
