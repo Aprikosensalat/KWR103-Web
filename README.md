@@ -29,6 +29,11 @@ das Gerät es per Befehl kann – Remote Sense. Laden, Schutz und Speicher bleib
 
 ## Starten
 
+**Online:** <https://aprikosensalat.github.io/KWR103-Web/> in Chrome oder Edge öffnen, Gerät wählen und
+**Verbinden** klicken. Die Messdateien bleiben dabei lokal im Browser.
+
+**Lokal:**
+
 Nur in **Chrome / Edge (Desktop)** und in sicherem Kontext (`https://` oder `http://localhost`):
 
 ```sh
