@@ -39,9 +39,10 @@ Dann <http://localhost:8001> öffnen, **Verbinden** klicken und den COM-Port des
 
 **Android:** Chrome unter Android kann mit Web Serial nur Bluetooth-Geräte öffnen. Für das USB-Kabel
 (OTG-Adapter) unter **Schnittstelle** „USB direkt (WebUSB, Android)“ wählen – unter Android ist das
-voreingestellt. Die Website spricht dann das USB-CDC-Protokoll selbst (`usbserial.js`, KEL103 und KWR103
-melden sich als VID 0x0416 / PID 0x5011). Unter Windows hält der COM-Port-Treiber das Gerät, dort weiter
-„Seriell“ verwenden.
+voreingestellt. Die Website spricht dann das USB-Protokoll des Seriell-Chips selbst (`usbserial.js`):
+USB-CDC (KORAD, VID 0x0416 / PID 0x5011 – am Gerät geprüft), Prolific PL2303 (ITECH IT8514C+) und FTDI
+(R&S HMP mit HO720/HO730) – die beiden letzten nach den Linux-Treibern umgesetzt, nicht an Hardware geprüft.
+Unter Windows hält der COM-Port-Treiber das Gerät, dort weiter „Seriell“ verwenden.
 
 ## Batterie laden
 

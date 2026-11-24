@@ -68,7 +68,7 @@ for (const b of tabButtons) b.addEventListener('click', () => showTab(b.dataset.
 // ---------- Geräteauswahl ----------
 // „kwr103“ nutzt den Originaltreiber mit allen Sonderfunktionen, alle anderen Netzteile aus der
 // Geräte-Registry laufen über GenericSource (nur Grundfunktionen und ggf. Remote Sense).
-const NATIVE = { id: 'kwr103', name: 'KORAD KWR103', baudRates: [9600, 19200, 38400, 57600, 115200], defaultBaud: 115200, usbCdc: true };
+const NATIVE = { id: 'kwr103', name: 'KORAD KWR103', baudRates: [9600, 19200, 38400, 57600, 115200], defaultBaud: 115200, webUsb: true };
 const deviceList = [NATIVE, ...registry.list('source').filter((i) => i.id !== 'kwr103')];
 const deviceInfo = () => deviceList.find((d) => d.id === $('devModel').value) ?? NATIVE;
 const isNative = () => psu instanceof KWR103;
@@ -119,7 +119,7 @@ function selectDevice() {
   baud.value = storageGet(`kwr103.baud.${info.id}`) ?? info.defaultBaud;
   $('baudWrap').hidden = !!info.sim || !baud.options.length;
   $('transWrap').hidden = !!info.sim;
-  const usbOk = 'usb' in navigator && info.usbCdc;
+  const usbOk = 'usb' in navigator && info.webUsb;
   for (const o of $('transport').options) if (o.value === 'usb') o.hidden = !usbOk;
   if ($('transport').value === 'usb' && !usbOk) $('transport').value = 'serial';
   const note = [info.note, info.senseHint].filter(Boolean).join(' ');
