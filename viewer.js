@@ -28,14 +28,16 @@ export function fmtRel(ms, step = 1000) {
 
 const fmtNum = (x, d) => (typeof x === 'number' && Number.isFinite(x) ? x.toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 
-const LABELS = { kapazitaet: 'Kapazität', geladen: 'Geladen' };
+const LABELS = { kapazitaet: 'Kapazität', geladen: 'Geladen', eta: 'η' };
+const UNITS = { pct: '%' };
 
 /** Spaltenname -> Bezeichnung und Einheit (z. B. geladen_mAh -> „Geladen“, „mAh“). */
 function describeCol(key) {
   const m = key.match(/^(.*)_([A-Za-zΩ]+)$/);
   const raw = m ? m[1] : key;
   const name = LABELS[raw] ?? raw.replace(/_/g, ' ');
-  return { label: name.charAt(0).toUpperCase() + name.slice(1), unit: m ? m[2] : '' };
+  const unit = m ? UNITS[m[2]] ?? m[2] : '';
+  return { label: name.charAt(0).toUpperCase() + name.slice(1), unit };
 }
 
 export class LogViewer {
@@ -156,16 +158,19 @@ export class LogViewer {
 
   _buildSeries() {
     const old = new Map(this.series.map((s) => [s.key, s.visible]));
+    // meta.baseLabels: andere Namen für die Grundspalten (z. B. ['Vout', 'Iout', 'Pout'])
+    const bl = this.meta.baseLabels ?? ['Spannung', 'Strom', 'Leistung'];
     const base = [
-      { key: 'v', label: 'Spannung', unit: 'V', color: '--c-volt', digits: 3 },
-      { key: 'i', label: 'Strom', unit: 'A', color: '--c-curr', digits: 3 },
-      { key: 'p', label: 'Leistung', unit: 'W', color: '--c-pow', digits: 2 },
+      { key: 'v', label: bl[0], unit: 'V', color: '--c-volt', digits: 3 },
+      { key: 'i', label: bl[1], unit: 'A', color: '--c-curr', digits: 3 },
+      { key: 'p', label: bl[2], unit: 'W', color: '--c-pow', digits: 2 },
     ];
     // Zahlenspalten der Datei (z. B. kapazitaet_mAh); reine Zeitspalten weglassen
     const extra = (this.meta.extraCols ?? [])
       .filter((c) => !c.text && !/zeit_(min|s|h)$/.test(c.key))
-      .map((c, k) => ({ key: c.key, ...describeCol(c.key), color: EXTRA_COLORS[k % EXTRA_COLORS.length], digits: c.digits ?? 3 }));
-    this.series = [...base, ...extra].map((s) => ({ ...s, visible: old.get(s.key) ?? true }));
+      .map((c, k) => ({ key: c.key, ...describeCol(c.key), color: EXTRA_COLORS[k % EXTRA_COLORS.length], digits: c.digits ?? 3, hidden: c.hidden }));
+    // extraCols[].hidden: Spalte zunächst ausgeblendet
+    this.series = [...base, ...extra].map((s) => ({ ...s, visible: old.get(s.key) ?? !s.hidden }));
 
     this.el.series.innerHTML = '';
     for (const s of this.series) {
