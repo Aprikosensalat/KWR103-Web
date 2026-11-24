@@ -20,6 +20,13 @@ Schwesterprojekt zu *KEL103-Web*. Kein Build-Schritt, keine Abhängigkeiten – 
 - CSV wahlweise für deutsches Excel (`;`, Dezimalkomma, Ortszeit) oder international
 - Konsole für beliebige Befehle
 
+## Andere Netzteile
+
+Über **Gerät** lassen sich auch die Netzteile aus der gemeinsamen Geräteschicht (`devices/`, wie in
+*Effizienzmessung-Web*) steuern: KORAD KA3005P, R&S NGP800-Serie, R&S HMP2020/2030/4030/4040 und ein Simulator.
+Für diese gibt es die Grundfunktionen (Sollwerte, Ausgang, Messung, Verlauf, Messdateien, Konsole) und – wo
+das Gerät es per Befehl kann – Remote Sense. Laden, Schutz und Speicher bleiben dem KWR103 vorbehalten.
+
 ## Starten
 
 Nur in **Chrome / Edge (Desktop)** und in sicherem Kontext (`https://` oder `http://localhost`):

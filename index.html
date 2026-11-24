@@ -11,20 +11,20 @@
   <header>
     <h1>KWR103 Steuerung</h1>
     <div class="conn">
-      <label>Schnittstelle
+      <label>Gerät
+        <select id="devModel"></select>
+      </label>
+      <label id="devChWrap" hidden>Kanal
+        <select id="devChannel"></select>
+      </label>
+      <label id="transWrap">Schnittstelle
         <select id="transport">
           <option value="serial">Seriell (Web Serial)</option>
           <option value="usb">USB direkt (WebUSB, Android)</option>
         </select>
       </label>
-      <label>Baudrate
-        <select id="baud">
-          <option>9600</option>
-          <option>19200</option>
-          <option>38400</option>
-          <option>57600</option>
-          <option selected>115200</option>
-        </select>
+      <label id="baudWrap">Baudrate
+        <select id="baud"></select>
       </label>
       <button id="btnConnect" class="primary">Verbinden</button>
       <span id="status" class="status off">getrennt</span>
@@ -40,11 +40,12 @@
     <section class="card">
       <h2>Gerät</h2>
       <p id="idn" class="muted">—</p>
+      <p id="devNote" class="muted small" hidden></p>
       <div class="flags" id="devFlags" hidden>
         <span class="status off" id="flagMode">—</span>
-        <span class="status off" id="flagOvp">OVP aus</span>
-        <span class="status off" id="flagSense">Remote Sense aus</span>
-        <span class="status off" id="flagLock">Tasten frei</span>
+        <span class="status off" id="flagOvp" data-cap="prot">OVP aus</span>
+        <span class="status off" id="flagSense" data-cap="sense">Remote Sense aus</span>
+        <span class="status off" id="flagLock" data-cap="sys">Tasten frei</span>
       </div>
     </section>
 
@@ -101,11 +102,11 @@
       <label class="check"><input type="checkbox" id="offOnDisconnect" checked> Ausgang beim Trennen ausschalten</label>
     </section>
 
-    <section class="card tabs-card">
+    <section class="card tabs-card" id="tabsCard">
       <div class="tabs" role="tablist" aria-label="Sonderfunktionen">
-        <button role="tab" data-tab="charge">Batterie laden</button>
-        <button role="tab" data-tab="prot">Schutz</button>
-        <button role="tab" data-tab="sys">Speicher &amp; System</button>
+        <button role="tab" data-tab="charge" data-cap="charge">Batterie laden</button>
+        <button role="tab" data-tab="prot" data-cap="prot">Schutz</button>
+        <button role="tab" data-tab="sys" data-cap="sense">Speicher &amp; System</button>
       </div>
 
       <!-- Batterie laden -->
@@ -194,6 +195,7 @@
 
       <!-- Speicher & System -->
       <div class="tab-panel" role="tabpanel" id="tab-sys" hidden>
+        <div data-cap="mem">
         <h3>Schnellspeicher M1–M5</h3>
         <div class="row">
           <label>Speicher
@@ -205,15 +207,20 @@
           <button id="btnMemSave" disabled>Aktuelle Sollwerte speichern</button>
         </div>
         <p id="memMsg" class="muted small"></p>
+        </div>
         <h3>System</h3>
         <div class="row">
-          <label class="check"><input type="checkbox" id="sysBeep" disabled> Tastenton (Summer)</label>
-          <label class="check"><input type="checkbox" id="sysLock" disabled> Tastensperre am Gerät</label>
+          <label class="check" data-cap="sys"><input type="checkbox" id="sysBeep" disabled> Tastenton (Summer)</label>
+          <label class="check" data-cap="sys"><input type="checkbox" id="sysLock" disabled> Tastensperre am Gerät</label>
           <label class="check"><input type="checkbox" id="sysSense" disabled> Remote Sense</label>
         </div>
-        <p class="muted small">
+        <p class="muted small" data-cap="sys">
           Remote Sense nur mit angeschlossenen Sense-Leitungen (Rückseite, SENSE) einschalten; umschalten nur bei
           ausgeschaltetem Ausgang. Am Gerät: OCP lange drücken. Tastensperre am Gerät: LOCK lange drücken.
+        </p>
+        <p class="muted small" data-cap="generic">
+          Remote Sense nur mit angeschlossenen Sense-Leitungen einschalten; umschalten nur bei ausgeschaltetem Ausgang.
+          Weitere Sonderfunktionen (Laden, Schutz, Speicher) gibt es nur beim KWR103.
         </p>
       </div>
     </section>

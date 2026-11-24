@@ -1,10 +1,12 @@
 import { KWR103, LIMITS } from './kwr103.js';
+import { registry } from './devices/index.js';
+import { GenericSource } from './devices/adapters.js';
 import { TimePlot } from './plot.js';
 import { RunStore, Recorder, runToCsv, fileName, makeZip } from './runs.js';
 import { LogViewer } from './viewer.js';
 
 const $ = (id) => document.getElementById(id);
-const psu = new KWR103();
+let psu = null; // aktiver Treiber: KWR103 mit allen Funktionen oder ein anderes Netzteil über GenericSource
 const store = new RunStore();
 const storeOpened = store.open(); // sofort öffnen; Schreibzugriffe warten darauf
 const rec = new Recorder(store, () => scheduleFilesRefresh());
@@ -44,11 +46,11 @@ function log(kind, text) {
   while (logEl.childElementCount > 500) logEl.firstChild.remove();
   logEl.scrollTop = logEl.scrollHeight;
 }
-psu.onLog = (kind, text) => {
+function onPsuLog(kind, text) {
   // Routineabfragen nicht ins Log schreiben
-  if (kind !== 'err' && /^(VOUT\?|IOUT\?|STATUS\?|OUT\?|0x[0-9a-f]{2}|\d+\.\d+|[01])$/.test(text)) return;
+  if (kind !== 'err' && /^(VOUT1?\?|IOUT1?\?|STATUS\?|OUT\?|OUTP\?|MEAS:(VOLT|CURR)\?|STAT:QUES.*|FUSE:TRIP\?|VOLT:PROT:TRIP\?|0x[0-9a-f]{2}|\d+\.\d+|[01])$/.test(text)) return;
   log(kind, text);
-};
+}
 
 // ---------- Reiter ----------
 const tabButtons = [...document.querySelectorAll('[data-tab]')];
@@ -63,11 +65,79 @@ function showTab(name) {
 }
 for (const b of tabButtons) b.addEventListener('click', () => showTab(b.dataset.tab));
 
+// ---------- Geräteauswahl ----------
+// „kwr103“ nutzt den Originaltreiber mit allen Sonderfunktionen, alle anderen Netzteile aus der
+// Geräte-Registry laufen über GenericSource (nur Grundfunktionen und ggf. Remote Sense).
+const NATIVE = { id: 'kwr103', name: 'KORAD KWR103', baudRates: [9600, 19200, 38400, 57600, 115200], defaultBaud: 115200, usbCdc: true };
+const deviceList = [NATIVE, ...registry.list('source').filter((i) => i.id !== 'kwr103')];
+const deviceInfo = () => deviceList.find((d) => d.id === $('devModel').value) ?? NATIVE;
+const isNative = () => psu instanceof KWR103;
+let caps = {};
+
+for (const d of deviceList) $('devModel').add(new Option(d.id === 'kwr103' ? `${d.name} (alle Funktionen)` : d.name, d.id));
+$('devModel').value = deviceList.some((d) => d.id === storageGet('kwr103.device')) ? storageGet('kwr103.device') : 'kwr103';
+
+/** Grenzen des aktiven Geräts { V, I, P }. */
+function lim() {
+  if (isNative()) return LIMITS;
+  const l = psu.limits;
+  return { V: l.vMax, I: l.iMax, P: l.pMax };
+}
+
+/** Blendet Bedienelemente aus, die das gewählte Gerät nicht kann. */
+function applyCaps() {
+  caps = isNative()
+    ? { charge: true, prot: true, mem: true, sys: true, sense: true, generic: false }
+    : { charge: false, prot: false, mem: false, sys: false, sense: psu.senseControl, generic: true };
+  for (const el of document.querySelectorAll('[data-cap]')) el.hidden = !caps[el.dataset.cap];
+  const visibleTabs = tabButtons.filter((b) => !b.hidden);
+  $('tabsCard').hidden = !visibleTabs.length;
+  if (visibleTabs.length) {
+    const saved = storageGet('kwr103.tab');
+    showTab(visibleTabs.some((b) => b.dataset.tab === saved) ? saved : visibleTabs[0].dataset.tab);
+  }
+  const l = lim();
+  $('setV').max = l.V;
+  $('setI').max = l.I;
+  document.querySelector('h1').textContent = `${deviceInfo().name.replace(/^KORAD /, '')} Steuerung`;
+  document.title = document.querySelector('h1').textContent;
+}
+
+/** Treiber für die Auswahl anlegen (nur im getrennten Zustand). */
+function selectDevice() {
+  const info = deviceInfo();
+  storageSet('kwr103.device', info.id);
+  const ch = $('devChannel');
+  ch.innerHTML = '';
+  (info.channels ?? [{}]).forEach((c, k) => ch.add(new Option(c.vMax ? `${k + 1} (${c.vMax} V / ${c.iMax} A)` : String(k + 1), k + 1)));
+  const savedCh = storageGet(`kwr103.ch.${info.id}`);
+  if (savedCh && savedCh <= ch.options.length) ch.value = savedCh;
+  $('devChWrap').hidden = ch.options.length < 2;
+  const baud = $('baud');
+  baud.innerHTML = '';
+  for (const b of info.baudRates ?? []) baud.add(new Option(b, b));
+  baud.value = storageGet(`kwr103.baud.${info.id}`) ?? info.defaultBaud;
+  $('baudWrap').hidden = !!info.sim || !baud.options.length;
+  $('transWrap').hidden = !!info.sim;
+  const usbOk = 'usb' in navigator && info.usbCdc;
+  for (const o of $('transport').options) if (o.value === 'usb') o.hidden = !usbOk;
+  if ($('transport').value === 'usb' && !usbOk) $('transport').value = 'serial';
+  const note = [info.note, info.senseHint].filter(Boolean).join(' ');
+  $('devNote').textContent = note;
+  $('devNote').hidden = !note;
+
+  psu = info.id === 'kwr103' ? new KWR103() : new GenericSource(info.id, { channel: Number(ch.value) || 1 });
+  psu.onLog = onPsuLog;
+  psu.onDisconnect = onPsuDisconnect;
+  applyCaps();
+}
+
 // ---------- UI-Zustand ----------
 function updateControls() {
   const connected = psu.connected;
   const free = connected && !state.busy && !chgActive();
   $('btnConnect').textContent = connected ? 'Trennen' : 'Verbinden';
+  for (const id of ['devModel', 'devChannel', 'transport', 'baud']) $(id).disabled = connected;
   $('status').textContent = connected ? 'verbunden' : 'getrennt';
   $('status').classList.toggle('on', connected);
   $('btnOutput').disabled = !connected || state.busy;
@@ -98,7 +168,7 @@ function setOutputUI(on) {
   // Ausgang ohne Ladung eingeschaltet (Knopf oder am Gerät) -> eigene Datei „Manuell“
   if (on && !was && !rec.active && !chgActive() && !state.busy && psu.connected) {
     const set = $('curSet').textContent;
-    rec.start('manual', `Manuell – ${set}`, { endOnInputOff: true, params: { Sollwerte: set } });
+    rec.start('manual', `Manuell – ${set}`, { endOnInputOff: true, params: { Geraet: deviceInfo().name, Sollwerte: set } });
   }
 }
 
@@ -123,6 +193,10 @@ function renderStatus(st) {
 async function refreshSetpoints() {
   const v = await psu.getVoltageSet();
   const i = await psu.getCurrentSet();
+  if (v == null || i == null) {
+    $('curSet').textContent = '— (nicht abfragbar)';
+    return { v, i };
+  }
   $('curSet').textContent = `${v.toFixed(3)} V / ${i.toFixed(3)} A`;
   $('setV').value = v;
   $('setI').value = i;
@@ -130,6 +204,7 @@ async function refreshSetpoints() {
 }
 
 async function refreshSense() {
+  if (!caps.sense) return;
   const on = await psu.getSense();
   $('sysSense').checked = on;
   setFlag('flagSense', on, 'Remote Sense an', 'Remote Sense aus');
@@ -149,8 +224,10 @@ async function connect() {
   try {
     $('idn').textContent = await psu.identify();
     await refreshSetpoints();
-    $('ovpV').value = await psu.getOVP();
-    $('ocpI').value = await psu.getOCP();
+    if (caps.prot) {
+      $('ovpV').value = await psu.getOVP();
+      $('ocpI').value = await psu.getOCP();
+    }
     await refreshSense();
     const st = await psu.status();
     state.outputOn = st.output; // ohne „Manuell“-Datei für einen schon laufenden Ausgang
@@ -172,7 +249,7 @@ async function disconnect() {
   await psu.disconnect();
 }
 
-psu.onDisconnect = () => {
+function onPsuDisconnect() {
   stopPoll();
   if (chgActive()) {
     finishCharge($('offOnDisconnect').checked
@@ -182,9 +259,12 @@ psu.onDisconnect = () => {
   rec.end('Verbindung getrennt');
   updateControls();
   log('info', 'Port geschlossen');
-};
+}
 
 $('btnConnect').addEventListener('click', () => (psu.connected ? disconnect() : connect()));
+$('devModel').addEventListener('change', selectDevice);
+$('devChannel').addEventListener('change', () => { storageSet(`kwr103.ch.${deviceInfo().id}`, $('devChannel').value); selectDevice(); });
+$('baud').addEventListener('change', () => storageSet(`kwr103.baud.${deviceInfo().id}`, $('baud').value));
 
 // ---------- Grundsteuerung ----------
 $('btnOutput').addEventListener('click', async () => {
@@ -202,7 +282,7 @@ async function applySetpoints() {
   const v = Number($('setV').value);
   const i = Number($('setI').value);
   try {
-    if (v * i > LIMITS.P) log('info', `Hinweis: ${v} V × ${i} A = ${(v * i).toFixed(0)} W – das Netzteil begrenzt auf ${LIMITS.P} W.`);
+    if (v * i > lim().P) log('info', `Hinweis: ${v} V × ${i} A = ${(v * i).toFixed(0)} W – das Netzteil begrenzt auf ${lim().P} W.`);
     await psu.setVoltage(v);
     await psu.setCurrent(i);
     rec.event(`Sollwerte ${v} V / ${i} A`);
@@ -405,6 +485,7 @@ function renderCharge() {
 }
 
 async function startCharge() {
+  if (!caps.charge) return;
   let p;
   try {
     p = readChargeForm();
@@ -856,10 +937,7 @@ $('consoleForm').addEventListener('submit', async (e) => {
 });
 
 // ---------- Start ----------
-if (!KWR103.supported()) {
-  $('unsupported').hidden = false;
-  $('btnConnect').disabled = true;
-}
+if (!KWR103.supported()) $('unsupported').hidden = false; // der Simulator funktioniert trotzdem
 // Schnittstelle: Web Serial am Desktop, WebUSB unter Android (dort kann Web Serial nur Bluetooth)
 {
   const hasSerial = 'serial' in navigator, hasUsb = 'usb' in navigator;
@@ -870,7 +948,7 @@ if (!KWR103.supported()) {
     : (android || !hasSerial) && hasUsb ? 'usb' : 'serial';
   $('transport').addEventListener('change', () => storageSet('kwr103.transport', $('transport').value));
 }
-showTab(storageGet('kwr103.tab') ?? 'charge');
+selectDevice();
 updateControls();
 storeOpened.then(() => {
   navigator.storage?.persist?.().catch(() => {});
