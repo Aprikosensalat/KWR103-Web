@@ -422,6 +422,7 @@ for (const id of CHG_FIELDS) {
   $(id).addEventListener('change', () => storageSet('kwr103.charge', Object.fromEntries(CHG_FIELDS.map((f) => [f, $(f).value]))));
 }
 
+const PREP_CURRENT_A = 0.005; // Strombegrenzung bei „Ladung vorbereiten“ (5 mA)
 const BATT_DETECT_MS = 2000; // so lange muss der Spannungseinbruch stabil sein
 const IGNORE_AFTER_START_MS = 5000; // Anlaufzeit, in der der Abschaltstrom nicht geprüft wird
 const CHG_COLS = [
@@ -500,11 +501,11 @@ async function startCharge() {
       await psu.setOutput(false);
       setOutputUI(false);
     }
-    // CV = Ladeschlussspannung, Strombegrenzung 1 mA
+    // CV = Ladeschlussspannung, Strombegrenzung 5 mA
     await psu.setVoltage(p.vEnd);
-    await psu.setCurrent(0.001);
+    await psu.setCurrent(PREP_CURRENT_A);
     const set = await refreshSetpoints();
-    if (!near(set.v, p.vEnd) || !near(set.i, 0.001)) {
+    if (!near(set.v, p.vEnd) || !near(set.i, PREP_CURRENT_A)) {
       throw new Error(`Das Netzteil hat die Werte nicht übernommen (gelesen: ${set.v} V / ${set.i} A).`);
     }
     if ($('chgClear').checked) $('btnClear').click();
@@ -532,7 +533,7 @@ async function startCharge() {
     renderStatus(st);
     if (!st.output) throw new Error('Der Ausgang ließ sich nicht einschalten.');
     setChgState('wartet', 'run');
-    chgMsg(`Ausgang an: ${p.vEnd} V mit 1 mA Strombegrenzung. Jetzt die Batterie anschließen (Plus an Plus) …`);
+    chgMsg(`Ausgang an: ${p.vEnd} V mit ${PREP_CURRENT_A * 1000} mA Strombegrenzung. Jetzt die Batterie anschließen (Plus an Plus) …`);
     log('info', `Ladung vorbereitet: ${p.vEnd} V, warte auf Batterie`);
   } catch (e) {
     chgMsg(e.message, 'err');
@@ -556,7 +557,7 @@ function chargeEvaluate(m, st) {
   if (!st.output) {
     action = { type: 'abort', reason: 'Ausgang wurde ausgeschaltet (am Gerät oder durch eine Schutzschaltung)' };
   } else if (c.phase === 'wait') {
-    // Batterie erkannt: Spannung bricht unter die Ladeschlussspannung ein, Netzteil in Strombegrenzung (1 mA)
+    // Batterie erkannt: Spannung bricht unter die Ladeschlussspannung ein, Netzteil in Strombegrenzung (5 mA)
     const tol = Math.max(0.05, p.vEnd * 0.01);
     const cond = m.v < p.vEnd - tol && !st.cv ? 'below' : m.v > p.vEnd + tol ? 'above' : null;
     if (cond !== c.waitCond) {

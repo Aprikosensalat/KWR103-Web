@@ -51,7 +51,7 @@ Unter Windows hält der COM-Port-Treiber das Gerät, dort weiter „Seriell“ v
 
 ## Batterie laden
 
-1. **Ladung vorbereiten:** Das Netzteil wird auf die Ladeschlussspannung mit **1 mA** Strombegrenzung
+1. **Ladung vorbereiten:** Das Netzteil wird auf die Ladeschlussspannung mit **5 mA** Strombegrenzung
    gestellt und der Ausgang eingeschaltet.
 2. **Batterie anschließen:** Die Website erkennt die Batterie daran, dass die Ausgangsspannung unter die
    Ladeschlussspannung einbricht und das Netzteil in die Strombegrenzung (CC) geht – 2 s stabil.
